@@ -6,7 +6,7 @@ import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSq
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
-  const SECRET_CODE = '6666'; 
+  const SECRET_CODE = '250806'; 
 
   useEffect(() => {
     const hasLogin = localStorage.getItem('pindou_auth');
