@@ -111,7 +111,7 @@ function App() {
     if (existingItem) {
       const newTotal = existingItem.count + countToAdd;
       const { error } = await supabase.from('inventory').update({ count: newTotal }).eq('id', existingItem.id);
-      if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补货入库', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
+      if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补豆入库', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
     } else {
       const { data, error } = await supabase.from('inventory').insert([{ name: newName, color: newColor, count: countToAdd, threshold: parseInt(newThreshold) }]).select();
       if (!error) { setItems([data[0], ...items]); addLog(newName, '新购入库', countToAdd); setNewName(''); setNewCount(1000); setNewThreshold(200); }
@@ -204,7 +204,7 @@ function App() {
           <p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p>
         </div>
         <div className="mt-4 md:mt-0 flex gap-4">
-           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 库存管理</button>
+           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 豆库管理</button>
            <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 作品墙</button>
         </div>
       </div>
@@ -214,7 +214,7 @@ function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-3 space-y-6">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
-                <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Plus className="w-5 h-5 text-indigo-600" /> 入库操作</h2>
+                <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
                 <form onSubmit={handleEntry} className="space-y-4">
                   <div className="relative">
                     <input type="text" placeholder="名称 (自动识别补货)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
@@ -230,7 +230,7 @@ function App() {
                     <input type="number" placeholder="数量" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
                     <input type="number" placeholder="预警" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
                   </div>
-                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
+                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补豆 (+${newCount})` : '✨ 确认入豆'}</button>
                 </form>
               </div>
               {lowStockCount > 0 && (
@@ -243,7 +243,7 @@ function App() {
 
             <div className="lg:col-span-6">
               <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-4 gap-2">
-                 <h2 className="font-bold text-gray-800">库存列表 ({totalTypes}种)</h2>
+                 <h2 className="font-bold text-gray-800">豆子列表 ({totalTypes}种)</h2>
                  <div className="flex items-center gap-2 bg-white p-1 pl-3 rounded-lg border border-gray-200 shadow-sm">
                    <ArrowUpDown size={14} className="text-gray-400" />
                    <select className="text-sm bg-transparent outline-none text-gray-600 font-medium py-1 pr-2 cursor-pointer" value={sortType} onChange={(e) => setSortType(e.target.value)}>
