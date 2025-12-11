@@ -1,62 +1,74 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
-import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle, Lock, KeyRound } from 'lucide-react';
 
 function App() {
+  // === 🔐 1. 门锁状态 ===
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  
+  // 这里设置暗号
+  const SECRET_CODE = '250806'; 
+
+  // === 检查是否登录过 ===
+  useEffect(() => {
+    const hasLogin = localStorage.getItem('pindou_auth');
+    if (hasLogin === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // === 处理登录 ===
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (passwordInput === SECRET_CODE) {
+      setIsAuthenticated(true);
+      localStorage.setItem('pindou_auth', 'true'); // 记住登录状态
+    } else {
+      alert('暗号错误！是自己人吗？🤨');
+    }
+  };
+
+  // === 原有的状态 ===
   const [activeTab, setActiveTab] = useState('inventory'); 
   const [items, setItems] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortType, setSortType] = useState('newest'); 
 
-  // 库存表单
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#ffb7b2');
   const [newCount, setNewCount] = useState(1000);
   const [newThreshold, setNewThreshold] = useState(200);
-
-  // 智能补货状态：用来存储找到的现有物品
   const [existingItem, setExistingItem] = useState(null);
 
-  // 作品墙
   const [posts, setPosts] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [description, setDescription] = useState('');
   const fileInputRef = useRef(null);
 
-  // 评论
   const [commentsMap, setCommentsMap] = useState({});
   const [commentInputs, setCommentInputs] = useState({}); 
 
   const greetings = ["今天你拼豆了吗？✨", "每一个豆豆都是艺术品！🎨", "库存充足，创意无限！🚀", "晒晒你的作品吧！📸"];
   const [greeting, setGreeting] = useState(greetings[0]);
 
+  // === 数据加载逻辑 (只有登录后才运行) ===
   useEffect(() => {
-    fetchData();
-    fetchGallery();
-    setGreeting(greetings[Math.floor(Math.random() * greetings.length)]);
-  }, []);
+    if (isAuthenticated) {
+      fetchData();
+      fetchGallery();
+      setGreeting(greetings[Math.floor(Math.random() * greetings.length)]);
+    }
+  }, [isAuthenticated]); // 依赖项改为 isAuthenticated
 
-  // --- 核心逻辑：监听输入名字，实现自动匹配 ---
+  // ... (中间的逻辑代码保持不变，为了节省篇幅，这里是核心逻辑区域) ...
   useEffect(() => {
-    if (!newName.trim()) {
-      setExistingItem(null);
-      return;
-    }
-    // 在现有库存里找名字一样的（忽略大小写）
+    if (!newName.trim()) { setExistingItem(null); return; }
     const found = items.find(item => item.name.toLowerCase() === newName.trim().toLowerCase());
-    
-    if (found) {
-      setExistingItem(found);
-      // 自动填充颜色和预警值
-      setNewColor(found.color);
-      setNewThreshold(found.threshold || 200);
-    } else {
-      setExistingItem(null);
-    }
+    if (found) { setExistingItem(found); setNewColor(found.color); setNewThreshold(found.threshold || 200); } else { setExistingItem(null); }
   }, [newName, items]);
 
-  // --- 数据获取 ---
   async function fetchData() {
     setLoading(true);
     const { data: inventoryData } = await supabase.from('inventory').select('*').order('id', { ascending: false });
@@ -72,10 +84,7 @@ function App() {
       setPosts(postsData);
       const { data: commentsData } = await supabase.from('comments').select('*').order('created_at', { ascending: true });
       const map = {};
-      commentsData?.forEach(c => {
-        if (!map[c.post_id]) map[c.post_id] = [];
-        map[c.post_id].push(c);
-      });
+      commentsData?.forEach(c => { if (!map[c.post_id]) map[c.post_id] = []; map[c.post_id].push(c); });
       setCommentsMap(map);
     }
   }
@@ -95,43 +104,17 @@ function App() {
     if (data) setLogs([data[0], ...logs]);
   }
 
-  // --- 智能入库逻辑 ---
   async function handleEntry(e) {
     e.preventDefault();
     if (!newName) return;
-    
     const countToAdd = parseInt(newCount);
-
     if (existingItem) {
-      // === 补货模式 ===
       const newTotal = existingItem.count + countToAdd;
-      
-      // 更新数据库
-      const { error } = await supabase
-        .from('inventory')
-        .update({ count: newTotal }) // 只更新数量，不改颜色和预警
-        .eq('id', existingItem.id);
-
-      if (!error) {
-        // 更新本地显示
-        setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item));
-        addLog(existingItem.name, '补货入库', countToAdd);
-        
-        // 重置表单
-        setNewName(''); setNewCount(1000); setExistingItem(null);
-      }
+      const { error } = await supabase.from('inventory').update({ count: newTotal }).eq('id', existingItem.id);
+      if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补货入库', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
     } else {
-      // === 新建模式 ===
-      const { data, error } = await supabase
-        .from('inventory')
-        .insert([{ name: newName, color: newColor, count: countToAdd, threshold: parseInt(newThreshold) }])
-        .select();
-
-      if (!error) {
-        setItems([data[0], ...items]);
-        addLog(newName, '新购入库', countToAdd);
-        setNewName(''); setNewCount(1000); setNewThreshold(200);
-      }
+      const { data, error } = await supabase.from('inventory').insert([{ name: newName, color: newColor, count: countToAdd, threshold: parseInt(newThreshold) }]).select();
+      if (!error) { setItems([data[0], ...items]); addLog(newName, '新购入库', countToAdd); setNewName(''); setNewCount(1000); setNewThreshold(200); }
     }
   }
 
@@ -145,10 +128,7 @@ function App() {
   async function updateStock(id, name, currentCount, changeAmount) {
     const newAmount = currentCount - changeAmount;
     const { error } = await supabase.from('inventory').update({ count: newAmount }).eq('id', id);
-    if (!error) {
-      setItems(items.map(item => item.id === id ? { ...item, count: newAmount } : item));
-      addLog(name, '消耗使用', changeAmount);
-    }
+    if (!error) { setItems(items.map(item => item.id === id ? { ...item, count: newAmount } : item)); addLog(name, '消耗使用', changeAmount); }
   }
 
   async function handleUpload(e) {
@@ -156,51 +136,71 @@ function App() {
     if (!file) return;
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('beads').upload(fileName, file);
-      if (uploadError) throw uploadError;
+      const fileExt = file.name.split('.').pop(); const fileName = `${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('beads').upload(fileName, file); if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('beads').getPublicUrl(fileName);
-      const { data, error: dbError } = await supabase.from('gallery').insert([{ url: publicUrl, description: description || '分享了一个作品' }]).select();
-      if (dbError) throw dbError;
-      setPosts([data[0], ...posts]);
-      setDescription('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      const { data, error: dbError } = await supabase.from('gallery').insert([{ url: publicUrl, description: description || '分享了一个作品' }]).select(); if (dbError) throw dbError;
+      setPosts([data[0], ...posts]); setDescription(''); if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (error) { alert('上传失败'); } finally { setUploading(false); }
   }
 
   async function deletePost(id, url) {
     if (!confirm('确定要删除这张作品吗？')) return;
     const { error } = await supabase.from('gallery').delete().eq('id', id);
-    if (!error) {
-      setPosts(posts.filter(p => p.id !== id));
-      try { const fileName = url.split('/').pop(); await supabase.storage.from('beads').remove([fileName]); } catch (err) {}
-    }
+    if (!error) { setPosts(posts.filter(p => p.id !== id)); try { const fileName = url.split('/').pop(); await supabase.storage.from('beads').remove([fileName]); } catch (err) {} }
   }
 
   async function sendComment(postId) {
-    const content = commentInputs[postId];
-    if (!content) return;
+    const content = commentInputs[postId]; if (!content) return;
     const { data, error } = await supabase.from('comments').insert([{ post_id: postId, content }]).select();
-    if (!error) {
-      const newMap = { ...commentsMap };
-      if (!newMap[postId]) newMap[postId] = [];
-      newMap[postId].push(data[0]);
-      setCommentsMap(newMap);
-      setCommentInputs({ ...commentInputs, [postId]: '' }); 
-    }
+    if (!error) { const newMap = { ...commentsMap }; if (!newMap[postId]) newMap[postId] = []; newMap[postId].push(data[0]); setCommentsMap(newMap); setCommentInputs({ ...commentInputs, [postId]: '' }); }
   }
 
   const totalTypes = items.length;
   const totalBeads = items.reduce((sum, item) => sum + item.count, 0);
-  // 计算缺货数量
   const lowStockCount = items.filter(i => i.count < (i.threshold || 200)).length;
 
+  // === 🔒 2. 如果没登录，显示锁屏界面 (这里是关键) ===
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl max-w-sm w-full text-center">
+          <div className="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-10 h-10 text-indigo-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">拼豆基地</h1>
+          <p className="text-gray-500 mb-8 text-sm">私人领地，闲人免进 🚫</p>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
+              <input 
+                type="password" // 密码框
+                placeholder="请输入访问暗号" 
+                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                value={passwordInput}
+                onChange={e => setPasswordInput(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <button 
+              type="submit" 
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200"
+            >
+              解锁进入
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // === 🔓 3. 登录后，显示原来的界面 ===
   return (
     <div className="min-h-screen p-4 md:p-6 bg-gray-50 font-sans pb-20">
       <div className="max-w-7xl mx-auto mb-6 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆子军火库存记录</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆子军火库存</h1>
           <p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p>
         </div>
         <div className="mt-4 md:mt-0 flex gap-4">
@@ -218,50 +218,25 @@ function App() {
                 <form onSubmit={handleEntry} className="space-y-4">
                   <div className="relative">
                     <input type="text" placeholder="名称 (自动识别补货)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
-                    {existingItem && (
-                       <div className="absolute right-2 top-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
-                         <Layers size={10} /> 已存在
-                       </div>
-                    )}
+                    {existingItem && <div className="absolute right-2 top-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 animate-pulse"><Layers size={10} /> 已存在</div>}
                   </div>
-
                   <div className="flex gap-2">
                     <div className="flex items-center gap-2 border border-gray-200 rounded-xl p-1.5 bg-gray-50 flex-1">
-                      {/* 如果是补货模式，禁用颜色选择，防止误改 */}
                       <input type="color" disabled={!!existingItem} className={`w-8 h-8 rounded-lg cursor-pointer bg-transparent border-none ${existingItem ? 'opacity-50 cursor-not-allowed' : ''}`} value={newColor} onChange={e => setNewColor(e.target.value)} />
                       <span className="text-xs text-gray-500">{newColor}</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <input type="number" placeholder="数量" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
-                    {/* 如果是补货模式，禁用预警值修改 */}
                     <input type="number" placeholder="预警" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
                   </div>
-                  
-                  {/* 按钮根据模式变化 */}
-                  <button 
-                    type="submit" 
-                    className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${
-                      existingItem 
-                        ? 'bg-green-600 hover:bg-green-700 shadow-green-200' 
-                        : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
-                    }`}
-                  >
-                    {existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}
-                  </button>
+                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
                 </form>
               </div>
-
-              {/* 缺货提醒框 - 完美回归 */}
               {lowStockCount > 0 && (
                 <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm animate-pulse">
-                   <div className="flex items-center gap-2 text-red-600 font-bold mb-2">
-                     <AlertTriangle size={20} /> 缺货提醒
-                   </div>
-                   <p className="text-sm text-red-500 leading-relaxed">
-                     当前有 <span className="font-bold text-lg mx-1">{lowStockCount}</span> 种豆豆库存不足。
-                     <br/>请查看红色标记的物品。
-                   </p>
+                   <div className="flex items-center gap-2 text-red-600 font-bold mb-2"><AlertTriangle size={20} /> 缺货提醒</div>
+                   <p className="text-sm text-red-500 leading-relaxed">当前有 <span className="font-bold text-lg mx-1">{lowStockCount}</span> 种豆豆库存不足。<br/>请查看红色标记的物品。</p>
                 </div>
               )}
             </div>
@@ -324,9 +299,7 @@ function App() {
                     <div className="text-xs text-gray-400 mb-4 flex items-center gap-1">发布于 {new Date(post.created_at).toLocaleString()}</div>
                     <div className="bg-gray-50 rounded-xl p-4">
                       <h3 className="text-sm font-bold text-gray-500 mb-3 flex items-center gap-1"><MessageSquare size={14} /> 评论</h3>
-                      <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
-                        {(commentsMap[post.id] || []).map(c => <div key={c.id} className="text-sm"><span className="text-gray-800">{c.content}</span></div>)}
-                      </div>
+                      <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">{(commentsMap[post.id] || []).map(c => <div key={c.id} className="text-sm"><span className="text-gray-800">{c.content}</span></div>)}</div>
                       <div className="flex gap-2">
                         <input type="text" placeholder="夸夸ta..." className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500" value={commentInputs[post.id] || ''} onChange={e => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })} onKeyDown={e => e.key === 'Enter' && sendComment(post.id)} />
                         <button onClick={() => sendComment(post.id)} className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700"><Send size={16} /></button>
