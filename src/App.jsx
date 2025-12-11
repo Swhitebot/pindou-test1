@@ -102,7 +102,7 @@ function App() {
       <div className="max-w-7xl mx-auto mb-8 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl shadow-indigo-200 flex flex-col md:flex-row items-center justify-between transition-all hover:shadow-2xl">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Package className="w-8 h-8" /> 拼豆军火库
+            <Package className="w-8 h-8" /> 拼豆记录
           </h1>
           <p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm font-medium">
             <Sparkles size={16} /> {greeting}
