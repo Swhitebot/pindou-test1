@@ -336,7 +336,7 @@ function ItemCard({ item, onDelete, onUpdate }) {
       </div>
       <form onSubmit={handleUse} className="relative flex gap-2">
         <input type="number" placeholder="用量" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500" value={consumeAmount} onChange={e => setConsumeAmount(e.target.value)} />
-        <button type="submit" disabled={!consumeAmount} className="bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black disabled:opacity-50">登记</button>
+        <button type="submit" disabled={!consumeAmount} className="bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black disabled:opacity-50">消耗</button>
       </form>
     </div>
   );
