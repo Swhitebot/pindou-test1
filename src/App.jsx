@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
-import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown } from 'lucide-react';
+import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('inventory'); 
   const [items, setItems] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // 新增：排序状态 'newest' | 'oldest' | 'count_asc' | 'count_desc'
   const [sortType, setSortType] = useState('newest'); 
 
   // 库存表单
@@ -16,6 +14,9 @@ function App() {
   const [newColor, setNewColor] = useState('#ffb7b2');
   const [newCount, setNewCount] = useState(1000);
   const [newThreshold, setNewThreshold] = useState(200);
+
+  // 智能补货状态：用来存储找到的现有物品
+  const [existingItem, setExistingItem] = useState(null);
 
   // 作品墙
   const [posts, setPosts] = useState([]);
@@ -36,10 +37,28 @@ function App() {
     setGreeting(greetings[Math.floor(Math.random() * greetings.length)]);
   }, []);
 
+  // --- 核心逻辑：监听输入名字，实现自动匹配 ---
+  useEffect(() => {
+    if (!newName.trim()) {
+      setExistingItem(null);
+      return;
+    }
+    // 在现有库存里找名字一样的（忽略大小写）
+    const found = items.find(item => item.name.toLowerCase() === newName.trim().toLowerCase());
+    
+    if (found) {
+      setExistingItem(found);
+      // 自动填充颜色和预警值
+      setNewColor(found.color);
+      setNewThreshold(found.threshold || 200);
+    } else {
+      setExistingItem(null);
+    }
+  }, [newName, items]);
+
   // --- 数据获取 ---
   async function fetchData() {
     setLoading(true);
-    // 默认先按 ID 倒序拿回来
     const { data: inventoryData } = await supabase.from('inventory').select('*').order('id', { ascending: false });
     const { data: logsData } = await supabase.from('logs').select('*').order('created_at', { ascending: false }).limit(20);
     if (inventoryData) setItems(inventoryData);
@@ -61,37 +80,58 @@ function App() {
     }
   }
 
-  // --- 核心逻辑：获取排序后的列表 ---
   const getSortedItems = () => {
-    // 复制一份数据以免影响原始数据
     const sorted = [...items];
     switch (sortType) {
-      case 'count_asc': // 数量从少到多
-        return sorted.sort((a, b) => a.count - b.count);
-      case 'count_desc': // 数量从多到少
-        return sorted.sort((a, b) => b.count - a.count);
-      case 'oldest': // 入库时间（旧到新）- ID小的在前面
-        return sorted.sort((a, b) => a.id - b.id);
-      case 'newest': // 入库时间（新到旧）- 默认
-      default:
-        return sorted.sort((a, b) => b.id - a.id);
+      case 'count_asc': return sorted.sort((a, b) => a.count - b.count);
+      case 'count_desc': return sorted.sort((a, b) => b.count - a.count);
+      case 'oldest': return sorted.sort((a, b) => a.id - b.id);
+      case 'newest': default: return sorted.sort((a, b) => b.id - a.id);
     }
   };
 
-  // --- 库存逻辑 ---
   async function addLog(itemName, action, amount) {
     const { data } = await supabase.from('logs').insert([{ item_name: itemName, action, amount: parseInt(amount) }]).select();
     if (data) setLogs([data[0], ...logs]);
   }
 
-  async function addItem(e) {
+  // --- 智能入库逻辑 ---
+  async function handleEntry(e) {
     e.preventDefault();
     if (!newName) return;
-    const { data, error } = await supabase.from('inventory').insert([{ name: newName, color: newColor, count: parseInt(newCount), threshold: parseInt(newThreshold) }]).select();
-    if (!error) {
-      setItems([data[0], ...items]);
-      addLog(newName, '新购入库', newCount);
-      setNewName(''); setNewCount(1000); setNewThreshold(200);
+    
+    const countToAdd = parseInt(newCount);
+
+    if (existingItem) {
+      // === 补货模式 ===
+      const newTotal = existingItem.count + countToAdd;
+      
+      // 更新数据库
+      const { error } = await supabase
+        .from('inventory')
+        .update({ count: newTotal }) // 只更新数量，不改颜色和预警
+        .eq('id', existingItem.id);
+
+      if (!error) {
+        // 更新本地显示
+        setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item));
+        addLog(existingItem.name, '补货入库', countToAdd);
+        
+        // 重置表单
+        setNewName(''); setNewCount(1000); setExistingItem(null);
+      }
+    } else {
+      // === 新建模式 ===
+      const { data, error } = await supabase
+        .from('inventory')
+        .insert([{ name: newName, color: newColor, count: countToAdd, threshold: parseInt(newThreshold) }])
+        .select();
+
+      if (!error) {
+        setItems([data[0], ...items]);
+        addLog(newName, '新购入库', countToAdd);
+        setNewName(''); setNewCount(1000); setNewThreshold(200);
+      }
     }
   }
 
@@ -111,7 +151,6 @@ function App() {
     }
   }
 
-  // --- 作品墙逻辑 ---
   async function handleUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -127,11 +166,7 @@ function App() {
       setPosts([data[0], ...posts]);
       setDescription('');
       if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch (error) {
-      alert('上传失败');
-    } finally {
-      setUploading(false);
-    }
+    } catch (error) { alert('上传失败'); } finally { setUploading(false); }
   }
 
   async function deletePost(id, url) {
@@ -139,10 +174,7 @@ function App() {
     const { error } = await supabase.from('gallery').delete().eq('id', id);
     if (!error) {
       setPosts(posts.filter(p => p.id !== id));
-      try {
-        const fileName = url.split('/').pop(); 
-        await supabase.storage.from('beads').remove([fileName]);
-      } catch (err) {}
+      try { const fileName = url.split('/').pop(); await supabase.storage.from('beads').remove([fileName]); } catch (err) {}
     }
   }
 
@@ -161,12 +193,14 @@ function App() {
 
   const totalTypes = items.length;
   const totalBeads = items.reduce((sum, item) => sum + item.count, 0);
+  // 计算缺货数量
+  const lowStockCount = items.filter(i => i.count < (i.threshold || 200)).length;
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-gray-50 font-sans pb-20">
       <div className="max-w-7xl mx-auto mb-6 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 拼豆库存记录</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 拼豆军火库</h1>
           <p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p>
         </div>
         <div className="mt-4 md:mt-0 flex gap-4">
@@ -180,36 +214,64 @@ function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-3 space-y-6">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
-                <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Plus className="w-5 h-5 text-indigo-600" /> 新品入库</h2>
-                <form onSubmit={addItem} className="space-y-4">
-                  <input type="text" placeholder="名称 (如: 纯黑)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
+                <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Plus className="w-5 h-5 text-indigo-600" /> 入库操作</h2>
+                <form onSubmit={handleEntry} className="space-y-4">
+                  <div className="relative">
+                    <input type="text" placeholder="名称 (自动识别补货)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
+                    {existingItem && (
+                       <div className="absolute right-2 top-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
+                         <Layers size={10} /> 已存在
+                       </div>
+                    )}
+                  </div>
+
                   <div className="flex gap-2">
                     <div className="flex items-center gap-2 border border-gray-200 rounded-xl p-1.5 bg-gray-50 flex-1">
-                      <input type="color" className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-none" value={newColor} onChange={e => setNewColor(e.target.value)} />
+                      {/* 如果是补货模式，禁用颜色选择，防止误改 */}
+                      <input type="color" disabled={!!existingItem} className={`w-8 h-8 rounded-lg cursor-pointer bg-transparent border-none ${existingItem ? 'opacity-50 cursor-not-allowed' : ''}`} value={newColor} onChange={e => setNewColor(e.target.value)} />
                       <span className="text-xs text-gray-500">{newColor}</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <input type="number" placeholder="数量" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
-                    <input type="number" placeholder="预警" className="w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none" value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
+                    {/* 如果是补货模式，禁用预警值修改 */}
+                    <input type="number" placeholder="预警" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
                   </div>
-                  <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700">确认入库</button>
+                  
+                  {/* 按钮根据模式变化 */}
+                  <button 
+                    type="submit" 
+                    className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${
+                      existingItem 
+                        ? 'bg-green-600 hover:bg-green-700 shadow-green-200' 
+                        : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
+                    }`}
+                  >
+                    {existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}
+                  </button>
                 </form>
               </div>
+
+              {/* 缺货提醒框 - 完美回归 */}
+              {lowStockCount > 0 && (
+                <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm animate-pulse">
+                   <div className="flex items-center gap-2 text-red-600 font-bold mb-2">
+                     <AlertTriangle size={20} /> 缺货提醒
+                   </div>
+                   <p className="text-sm text-red-500 leading-relaxed">
+                     当前有 <span className="font-bold text-lg mx-1">{lowStockCount}</span> 种豆豆库存不足。
+                     <br/>请查看红色标记的物品。
+                   </p>
+                </div>
+              )}
             </div>
 
             <div className="lg:col-span-6">
               <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-4 gap-2">
                  <h2 className="font-bold text-gray-800">库存列表 ({totalTypes}种)</h2>
-                 
-                 {/* 新增：排序下拉框 */}
                  <div className="flex items-center gap-2 bg-white p-1 pl-3 rounded-lg border border-gray-200 shadow-sm">
                    <ArrowUpDown size={14} className="text-gray-400" />
-                   <select 
-                      className="text-sm bg-transparent outline-none text-gray-600 font-medium py-1 pr-2 cursor-pointer"
-                      value={sortType}
-                      onChange={(e) => setSortType(e.target.value)}
-                   >
+                   <select className="text-sm bg-transparent outline-none text-gray-600 font-medium py-1 pr-2 cursor-pointer" value={sortType} onChange={(e) => setSortType(e.target.value)}>
                      <option value="newest">最新入库 (默认)</option>
                      <option value="oldest">最早入库</option>
                      <option value="count_asc">数量: 从少到多</option>
@@ -217,10 +279,8 @@ function App() {
                    </select>
                  </div>
               </div>
-
               {loading ? <div className="text-center text-gray-400">加载中...</div> : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 注意：这里使用 getSortedItems() 获取排序后的数据进行渲染 */}
                   {getSortedItems().map(item => <ItemCard key={item.id} item={item} onDelete={deleteItem} onUpdate={updateStock} />)}
                 </div>
               )}
@@ -254,17 +314,10 @@ function App() {
                 </div>
               </div>
             </div>
-
             <div className="space-y-8">
               {posts.map(post => (
                 <div key={post.id} className="relative bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden group">
-                  <button 
-                    onClick={() => deletePost(post.id, post.url)}
-                    className="absolute top-4 right-4 bg-black/50 hover:bg-red-500 text-white p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all z-10"
-                    title="删除作品"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  <button onClick={() => deletePost(post.id, post.url)} className="absolute top-4 right-4 bg-black/50 hover:bg-red-500 text-white p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all z-10" title="删除作品"><Trash2 size={18} /></button>
                   <img src={post.url} alt="作品" className="w-full h-auto object-cover max-h-[500px]" />
                   <div className="p-5">
                     <p className="text-gray-800 text-lg mb-4">{post.description}</p>
@@ -272,10 +325,7 @@ function App() {
                     <div className="bg-gray-50 rounded-xl p-4">
                       <h3 className="text-sm font-bold text-gray-500 mb-3 flex items-center gap-1"><MessageSquare size={14} /> 评论</h3>
                       <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
-                        {(commentsMap[post.id] || []).map(c => (
-                          <div key={c.id} className="text-sm"><span className="text-gray-800">{c.content}</span></div>
-                        ))}
-                        {(!commentsMap[post.id] || commentsMap[post.id].length === 0) && <div className="text-gray-400 text-xs">还没有评论，快来抢沙发~</div>}
+                        {(commentsMap[post.id] || []).map(c => <div key={c.id} className="text-sm"><span className="text-gray-800">{c.content}</span></div>)}
                       </div>
                       <div className="flex gap-2">
                         <input type="text" placeholder="夸夸ta..." className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500" value={commentInputs[post.id] || ''} onChange={e => setCommentInputs({ ...commentInputs, [post.id]: e.target.value })} onKeyDown={e => e.key === 'Enter' && sendComment(post.id)} />
