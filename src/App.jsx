@@ -47,7 +47,7 @@ function App() {
   const [commentsMap, setCommentsMap] = useState({});
   const [commentInputs, setCommentInputs] = useState({}); 
 
-  const greetings = ["一觉醒来，全世界拼豆水平下降一万倍，只有你保持不变。"];
+  const greetings = ["一觉醒来，全世界拼豆水平下降一万倍，只有你保持不变，此刻你还没意识到什么......"];
   const [greeting, setGreeting] = useState(greetings[0]);
 
   useEffect(() => {
