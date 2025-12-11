@@ -1,40 +1,36 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
-import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle, Lock, KeyRound } from 'lucide-react';
+import { mardColors } from './beadData'; // 1. 引入刚才的数据文件
+import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle, Lock, KeyRound, Database, CheckCircle, Loader } from 'lucide-react';
 
 function App() {
-  // === 🔐 1. 门锁状态 ===
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
-  
-  // 这里设置暗号
   const SECRET_CODE = '250806'; 
 
-  // === 检查是否登录过 ===
   useEffect(() => {
     const hasLogin = localStorage.getItem('pindou_auth');
-    if (hasLogin === 'true') {
-      setIsAuthenticated(true);
-    }
+    if (hasLogin === 'true') setIsAuthenticated(true);
   }, []);
 
-  // === 处理登录 ===
   const handleLogin = (e) => {
     e.preventDefault();
     if (passwordInput === SECRET_CODE) {
       setIsAuthenticated(true);
-      localStorage.setItem('pindou_auth', 'true'); // 记住登录状态
+      localStorage.setItem('pindou_auth', 'true');
     } else {
-      alert('暗号错误！是自己人吗？🤨');
+      alert('错误！');
     }
   };
 
-  // === 原有的状态 ===
   const [activeTab, setActiveTab] = useState('inventory'); 
   const [items, setItems] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortType, setSortType] = useState('newest'); 
+
+  // 批量导入状态
+  const [importing, setImporting] = useState(false);
 
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#ffb7b2');
@@ -50,19 +46,17 @@ function App() {
   const [commentsMap, setCommentsMap] = useState({});
   const [commentInputs, setCommentInputs] = useState({}); 
 
-  const greetings = ["今天你拼豆了吗？✨", "每一个豆豆都是艺术品！🎨", "库存充足，创意无限！🚀", "晒晒你的作品吧！📸"];
+  const greetings = ["今天你拼豆没？✨", "每一个豆豆都不错！🎨", "库存充足，拼豆！🚀", "晒晒你的作品吧！📸"];
   const [greeting, setGreeting] = useState(greetings[0]);
 
-  // === 数据加载逻辑 (只有登录后才运行) ===
   useEffect(() => {
     if (isAuthenticated) {
       fetchData();
       fetchGallery();
       setGreeting(greetings[Math.floor(Math.random() * greetings.length)]);
     }
-  }, [isAuthenticated]); // 依赖项改为 isAuthenticated
+  }, [isAuthenticated]);
 
-  // ... (中间的逻辑代码保持不变，为了节省篇幅，这里是核心逻辑区域) ...
   useEffect(() => {
     if (!newName.trim()) { setExistingItem(null); return; }
     const found = items.find(item => item.name.toLowerCase() === newName.trim().toLowerCase());
@@ -104,6 +98,45 @@ function App() {
     if (data) setLogs([data[0], ...logs]);
   }
 
+  // === 核心功能：批量导入逻辑 ===
+  async function handleBatchImport() {
+    if (!confirm(`准备导入 ${mardColors.length} 种 MARD 色卡数据？\n\n注意：如果名称已存在会自动跳过，不会覆盖。`)) return;
+    
+    setImporting(true);
+    let successCount = 0;
+    let skipCount = 0;
+
+    try {
+      // 1. 先获取当前所有库存，防止重复
+      const { data: currentItems } = await supabase.from('inventory').select('name');
+      const currentNames = new Set(currentItems?.map(i => i.name.toUpperCase()));
+
+      // 2. 过滤出数据库里没有的
+      const toInsert = mardColors.filter(item => !currentNames.has(item.name.toUpperCase()));
+      skipCount = mardColors.length - toInsert.length;
+
+      if (toInsert.length > 0) {
+        // 3. 批量插入
+        const { error } = await supabase.from('inventory').insert(toInsert);
+        if (error) throw error;
+        
+        // 4. 记一条总日志
+        await addLog('系统操作', `批量导入色卡`, toInsert.length);
+        successCount = toInsert.length;
+        
+        // 5. 刷新数据
+        await fetchData();
+      }
+
+      alert(`导入完成！\n✅ 成功导入: ${successCount} 个\n⏭️ 跳过重复: ${skipCount} 个`);
+    } catch (err) {
+      console.error(err);
+      alert('导入出错，请查看控制台');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleEntry(e) {
     e.preventDefault();
     if (!newName) return;
@@ -114,7 +147,7 @@ function App() {
       if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补豆入库', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
     } else {
       const { data, error } = await supabase.from('inventory').insert([{ name: newName, color: newColor, count: countToAdd, threshold: parseInt(newThreshold) }]).select();
-      if (!error) { setItems([data[0], ...items]); addLog(newName, '新购入库', countToAdd); setNewName(''); setNewCount(1000); setNewThreshold(200); }
+      if (!error) { setItems([data[0], ...items]); addLog(newName, '新豆入库', countToAdd); setNewName(''); setNewCount(1000); setNewThreshold(200); }
     }
   }
 
@@ -160,52 +193,35 @@ function App() {
   const totalBeads = items.reduce((sum, item) => sum + item.count, 0);
   const lowStockCount = items.filter(i => i.count < (i.threshold || 200)).length;
 
-  // === 🔒 2. 如果没登录，显示锁屏界面 (这里是关键) ===
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <div className="bg-white p-8 rounded-3xl shadow-xl max-w-sm w-full text-center">
-          <div className="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Lock className="w-10 h-10 text-indigo-600" />
-          </div>
+          <div className="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Lock className="w-10 h-10 text-indigo-600" /></div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">拼豆基地</h1>
-          <p className="text-gray-500 mb-8 text-sm">私人领地，闲人免进 🚫</p>
-          
+          <p className="text-gray-500 mb-8 text-sm">拼豆领地，闲人免进 🚫</p>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="relative">
               <KeyRound className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
-              <input 
-                type="password" // 密码框
-                placeholder="请输入访问暗号" 
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                value={passwordInput}
-                onChange={e => setPasswordInput(e.target.value)}
-                autoFocus
-              />
+              <input type="password" placeholder="请输入拼豆暗号" className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={passwordInput} onChange={e => setPasswordInput(e.target.value)} autoFocus />
             </div>
-            <button 
-              type="submit" 
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200"
-            >
-              解锁进入
-            </button>
+            <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">解锁进入</button>
           </form>
         </div>
       </div>
     );
   }
 
-  // === 🔓 3. 登录后，显示原来的界面 ===
   return (
     <div className="min-h-screen p-4 md:p-6 bg-gray-50 font-sans pb-20">
       <div className="max-w-7xl mx-auto mb-6 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆子军火库存</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆子军火库</h1>
           <p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p>
         </div>
         <div className="mt-4 md:mt-0 flex gap-4">
-           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 豆库管理</button>
-           <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 作品墙</button>
+           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 豆豆管理</button>
+           <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 豆豆墙</button>
         </div>
       </div>
 
@@ -230,8 +246,22 @@ function App() {
                     <input type="number" placeholder="数量" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
                     <input type="number" placeholder="预警" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
                   </div>
-                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补豆 (+${newCount})` : '✨ 确认入豆'}</button>
+                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
                 </form>
+
+                {/* === 新增：批量导入按钮 === */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                   <button 
+                     onClick={handleBatchImport}
+                     disabled={importing}
+                     className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition"
+                   >
+                     {importing ? <Loader className="animate-spin w-4 h-4" /> : <Database className="w-4 h-4" />}
+                     {importing ? '正在搬运色卡...' : '一键导入初始色卡'}
+                   </button>
+                   <p className="text-[10px] text-center text-gray-400 mt-2">包含全系列295种豆子</p>
+                </div>
+
               </div>
               {lowStockCount > 0 && (
                 <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm animate-pulse">
@@ -336,7 +366,7 @@ function ItemCard({ item, onDelete, onUpdate }) {
       </div>
       <form onSubmit={handleUse} className="relative flex gap-2">
         <input type="number" placeholder="用量" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-500" value={consumeAmount} onChange={e => setConsumeAmount(e.target.value)} />
-        <button type="submit" disabled={!consumeAmount} className="bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black disabled:opacity-50">消耗</button>
+        <button type="submit" disabled={!consumeAmount} className="bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black disabled:opacity-50">登记</button>
       </form>
     </div>
   );
