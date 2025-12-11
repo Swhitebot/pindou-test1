@@ -198,8 +198,8 @@ function App() {
       <div className="max-w-7xl mx-auto mb-6 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between">
         <div><h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 拼豆军火库</h1><p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p></div>
         <div className="mt-4 md:mt-0 flex gap-4">
-           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 库存管理</button>
-           <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 作品墙</button>
+           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 豆豆管理</button>
+           <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 豆墙</button>
         </div>
       </div>
 
@@ -238,7 +238,7 @@ function App() {
                     </div>
                   </div>
 
-                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
+                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入豆'}</button>
                 </form>
               </div>
               
@@ -337,7 +337,7 @@ function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
       </div>
       <form onSubmit={handleUse} className="relative">
         <input type="number" placeholder="使用了多少?" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition pr-16" value={consumeAmount} onChange={e => setConsumeAmount(e.target.value)} />
-        <button type="submit" disabled={!consumeAmount} className="absolute right-1 top-1 bottom-1 bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center">登记</button>
+        <button type="submit" disabled={!consumeAmount} className="absolute right-1 top-1 bottom-1 bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center">消耗</button>
       </form>
     </div>
   );
