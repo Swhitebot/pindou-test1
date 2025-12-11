@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
-import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, XCircle } from 'lucide-react';
+import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('inventory'); 
@@ -8,6 +8,9 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // 新增：排序状态 'newest' | 'oldest' | 'count_asc' | 'count_desc'
+  const [sortType, setSortType] = useState('newest'); 
+
   // 库存表单
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#ffb7b2');
@@ -24,7 +27,7 @@ function App() {
   const [commentsMap, setCommentsMap] = useState({});
   const [commentInputs, setCommentInputs] = useState({}); 
 
-  const greetings = ["今天你拼豆了吗？✨", "每一个豆都是艺术品！🎨", "库存充足，创意无限！🚀", "晒晒你的作品吧！📸"];
+  const greetings = ["今天你拼豆了吗？✨", "每一个豆豆都是艺术品！🎨", "库存充足，创意无限！🚀", "晒晒你的作品吧！📸"];
   const [greeting, setGreeting] = useState(greetings[0]);
 
   useEffect(() => {
@@ -36,6 +39,7 @@ function App() {
   // --- 数据获取 ---
   async function fetchData() {
     setLoading(true);
+    // 默认先按 ID 倒序拿回来
     const { data: inventoryData } = await supabase.from('inventory').select('*').order('id', { ascending: false });
     const { data: logsData } = await supabase.from('logs').select('*').order('created_at', { ascending: false }).limit(20);
     if (inventoryData) setItems(inventoryData);
@@ -56,6 +60,23 @@ function App() {
       setCommentsMap(map);
     }
   }
+
+  // --- 核心逻辑：获取排序后的列表 ---
+  const getSortedItems = () => {
+    // 复制一份数据以免影响原始数据
+    const sorted = [...items];
+    switch (sortType) {
+      case 'count_asc': // 数量从少到多
+        return sorted.sort((a, b) => a.count - b.count);
+      case 'count_desc': // 数量从多到少
+        return sorted.sort((a, b) => b.count - a.count);
+      case 'oldest': // 入库时间（旧到新）- ID小的在前面
+        return sorted.sort((a, b) => a.id - b.id);
+      case 'newest': // 入库时间（新到旧）- 默认
+      default:
+        return sorted.sort((a, b) => b.id - a.id);
+    }
+  };
 
   // --- 库存逻辑 ---
   async function addLog(itemName, action, amount) {
@@ -94,50 +115,34 @@ function App() {
   async function handleUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-
     setUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage.from('beads').upload(fileName, file);
       if (uploadError) throw uploadError;
-
       const { data: { publicUrl } } = supabase.storage.from('beads').getPublicUrl(fileName);
-
       const { data, error: dbError } = await supabase.from('gallery').insert([{ url: publicUrl, description: description || '分享了一个作品' }]).select();
       if (dbError) throw dbError;
-
       setPosts([data[0], ...posts]);
       setDescription('');
       if (fileInputRef.current) fileInputRef.current.value = '';
-      alert('发布成功！');
     } catch (error) {
-      console.error(error);
-      alert('上传失败，请检查网络或图片大小');
+      alert('上传失败');
     } finally {
       setUploading(false);
     }
   }
 
-  // 新增：删除作品功能
   async function deletePost(id, url) {
-    if (!confirm('确定要删除这张作品吗？删除后不可恢复！')) return;
-
-    // 1. 删数据库记录
+    if (!confirm('确定要删除这张作品吗？')) return;
     const { error } = await supabase.from('gallery').delete().eq('id', id);
-
     if (!error) {
-      // 2. 更新本地显示
       setPosts(posts.filter(p => p.id !== id));
-      
-      // 3. (可选) 尝试删除云端存储的文件，节省空间
-      // URL 格式通常是 .../beads/文件名.jpg，我们需要提取文件名
       try {
         const fileName = url.split('/').pop(); 
         await supabase.storage.from('beads').remove([fileName]);
-      } catch (err) {
-        console.log('图片文件删除失败，但不影响功能', err);
-      }
+      } catch (err) {}
     }
   }
 
@@ -194,10 +199,29 @@ function App() {
             </div>
 
             <div className="lg:col-span-6">
-              <div className="flex justify-between items-end mb-4"><h2 className="font-bold text-gray-800">库存列表 ({totalTypes}种 / {totalBeads}颗)</h2></div>
+              <div className="flex flex-col md:flex-row justify-between items-end md:items-center mb-4 gap-2">
+                 <h2 className="font-bold text-gray-800">库存列表 ({totalTypes}种)</h2>
+                 
+                 {/* 新增：排序下拉框 */}
+                 <div className="flex items-center gap-2 bg-white p-1 pl-3 rounded-lg border border-gray-200 shadow-sm">
+                   <ArrowUpDown size={14} className="text-gray-400" />
+                   <select 
+                      className="text-sm bg-transparent outline-none text-gray-600 font-medium py-1 pr-2 cursor-pointer"
+                      value={sortType}
+                      onChange={(e) => setSortType(e.target.value)}
+                   >
+                     <option value="newest">最新入库 (默认)</option>
+                     <option value="oldest">最早入库</option>
+                     <option value="count_asc">数量: 从少到多</option>
+                     <option value="count_desc">数量: 从多到少</option>
+                   </select>
+                 </div>
+              </div>
+
               {loading ? <div className="text-center text-gray-400">加载中...</div> : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {items.map(item => <ItemCard key={item.id} item={item} onDelete={deleteItem} onUpdate={updateStock} />)}
+                  {/* 注意：这里使用 getSortedItems() 获取排序后的数据进行渲染 */}
+                  {getSortedItems().map(item => <ItemCard key={item.id} item={item} onDelete={deleteItem} onUpdate={updateStock} />)}
                 </div>
               )}
             </div>
@@ -234,7 +258,6 @@ function App() {
             <div className="space-y-8">
               {posts.map(post => (
                 <div key={post.id} className="relative bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden group">
-                  {/* 删除按钮：只在鼠标悬停时显示，位于图片右上角 */}
                   <button 
                     onClick={() => deletePost(post.id, post.url)}
                     className="absolute top-4 right-4 bg-black/50 hover:bg-red-500 text-white p-2 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all z-10"
@@ -242,12 +265,10 @@ function App() {
                   >
                     <Trash2 size={18} />
                   </button>
-
                   <img src={post.url} alt="作品" className="w-full h-auto object-cover max-h-[500px]" />
                   <div className="p-5">
                     <p className="text-gray-800 text-lg mb-4">{post.description}</p>
                     <div className="text-xs text-gray-400 mb-4 flex items-center gap-1">发布于 {new Date(post.created_at).toLocaleString()}</div>
-                    
                     <div className="bg-gray-50 rounded-xl p-4">
                       <h3 className="text-sm font-bold text-gray-500 mb-3 flex items-center gap-1"><MessageSquare size={14} /> 评论</h3>
                       <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
