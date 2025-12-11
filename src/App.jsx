@@ -32,6 +32,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
 
+  // 删除了 importing 状态
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#ffb7b2');
   const [newCount, setNewCount] = useState(1000);
@@ -46,7 +47,7 @@ function App() {
   const [commentsMap, setCommentsMap] = useState({});
   const [commentInputs, setCommentInputs] = useState({}); 
 
-  const greetings = ["今天你拼豆了吗？✨", "每一个豆豆都是艺术品！🎨", "库存充足，创意无限！🚀", "晒晒你的作品吧！📸"];
+  const greetings = ["一觉醒来，全世界拼豆水平下降一万倍，只有你保持不变，此刻你还没意识到什么......"];
   const [greeting, setGreeting] = useState(greetings[0]);
 
   useEffect(() => {
@@ -83,8 +84,7 @@ function App() {
     }
   }
 
-  // === 修改点 1: 删除了 'Q' 分类 ===
-  const categories = ['全部', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'R', 'T', 'Y', 'Z', '其他'];
+  const categories = ['全部', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'R', 'T', 'Y', 'Z', 'Q', '其他'];
 
   const getCategory = (name) => {
     const n = name.toUpperCase();
@@ -118,19 +118,7 @@ function App() {
     if (data) setLogs([data[0], ...logs]);
   }
 
-  // === 新增：清空动态日志的功能 ===
-  async function clearLogs() {
-    if (!confirm('确定要清空所有动态记录吗？此操作不可恢复！')) return;
-    
-    // 删除所有 id 不等于 -1 的记录（也就是删除所有）
-    const { error } = await supabase.from('logs').delete().neq('id', -1);
-    
-    if (!error) {
-      setLogs([]); // 清空本地显示
-    } else {
-      alert('清空失败，请重试');
-    }
-  }
+  // 删除了 handleBatchImport 函数
 
   async function handleEntry(e) {
     e.preventDefault();
@@ -219,6 +207,7 @@ function App() {
         {activeTab === 'inventory' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-3 space-y-6">
+              {/* 左侧卡片：删除了底部的导入按钮部分 */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
                 <h2 className="font-bold text-gray-800 mb-5 flex items-center gap-2 text-lg"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
                 <form onSubmit={handleEntry} className="space-y-4">
@@ -249,7 +238,7 @@ function App() {
                     </div>
                   </div>
 
-                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
+                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入豆'}</button>
                 </form>
               </div>
               
@@ -278,6 +267,7 @@ function App() {
                    </div>
                  </div>
 
+                 {/* === 核心修改：分类条样式改为自动换行 (flex-wrap)，去掉滚动条 === */}
                  <div className="flex flex-wrap gap-2 pb-2">
                     {categories.map(cat => (
                       <button key={cat} onClick={() => setSelectedCategory(cat)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${selectedCategory === cat ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>{cat}系</button>
@@ -300,25 +290,14 @@ function App() {
 
             <div className="lg:col-span-3">
                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden sticky top-6">
-                 {/* === 修改点 2: 动态标题栏增加清空按钮 === */}
-                 <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                   <h2 className="font-bold text-gray-800 flex items-center gap-2"><History className="w-4 h-4" /> 动态</h2>
-                   {logs.length > 0 && (
-                     <button onClick={clearLogs} className="text-gray-400 hover:text-red-500 transition" title="清空动态">
-                       <Trash2 size={16} />
-                     </button>
-                   )}
-                 </div>
-                 
+                 <div className="p-4 border-b border-gray-100 bg-gray-50"><h2 className="font-bold text-gray-800 flex items-center gap-2"><History className="w-4 h-4" /> 动态</h2></div>
                  <div className="max-h-[500px] overflow-y-auto">
-                   {logs.length === 0 ? <div className="p-4 text-center text-gray-300 text-xs">暂无动态</div> : (
-                     logs.map(log => (
-                       <div key={log.id} className="p-3 border-b border-gray-50 hover:bg-gray-50 text-xs">
-                         <div className="flex justify-between"><span className="font-bold text-gray-700">{log.item_name}</span><span className="text-gray-400">{new Date(log.created_at).getMonth()+1}/{new Date(log.created_at).getDate()}</span></div>
-                         <div className="flex justify-between mt-1"><span className="text-gray-500">{log.action}</span><span className={log.action.includes('入库') ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'}>{log.action.includes('入库') ? '+' : '-'}{log.amount}</span></div>
-                       </div>
-                     ))
-                   )}
+                   {logs.map(log => (
+                     <div key={log.id} className="p-3 border-b border-gray-50 hover:bg-gray-50 text-xs">
+                       <div className="flex justify-between"><span className="font-bold text-gray-700">{log.item_name}</span><span className="text-gray-400">{new Date(log.created_at).getMonth()+1}/{new Date(log.created_at).getDate()}</span></div>
+                       <div className="flex justify-between mt-1"><span className="text-gray-500">{log.action}</span><span className={log.action.includes('入库') ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'}>{log.action.includes('入库') ? '+' : '-'}{log.amount}</span></div>
+                     </div>
+                   ))}
                  </div>
                </div>
             </div>
