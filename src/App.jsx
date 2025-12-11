@@ -200,7 +200,7 @@ function App() {
     <div className="min-h-screen p-4 md:p-6 bg-gray-50 font-sans pb-20">
       <div className="max-w-7xl mx-auto mb-6 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 拼豆军火库</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆子军火库存记录</h1>
           <p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p>
         </div>
         <div className="mt-4 md:mt-0 flex gap-4">
