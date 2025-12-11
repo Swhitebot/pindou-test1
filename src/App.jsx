@@ -47,7 +47,7 @@ function App() {
   const [commentsMap, setCommentsMap] = useState({});
   const [commentInputs, setCommentInputs] = useState({}); 
 
-  const greetings = ["今天你拼豆了吗？✨", "每一个豆豆都是艺术品！🎨", "库存充足，创意无限！🚀", "晒晒你的作品吧！📸"];
+  const greetings = ["一觉醒来，全世界拼豆水平下降一万倍，只有你保持不变。"];
   const [greeting, setGreeting] = useState(greetings[0]);
 
   useEffect(() => {
