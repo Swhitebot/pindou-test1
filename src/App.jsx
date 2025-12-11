@@ -349,7 +349,7 @@ function ItemCard({ item, onDelete, onUpdate }) {
   const isLowStock = item.count < limit;
   const handleUse = (e) => { e.preventDefault(); if (!consumeAmount) return; onUpdate(item.id, item.name, item.count, parseInt(consumeAmount)); setConsumeAmount(''); };
   return (
-    <div className={`relative bg-white p-5 rounded-2xl shadow-sm border transition-all hover:shadow-lg ${isLowStock ? 'border-red-200 bg-red-50/50' : 'border-gray-100'}`}>
+    <div className={`relative bg-white p-5 rounded-2xl shadow-sm border-2 transition-all hover:shadow-lg ${isLowStock ? 'border-red-500 bg-red-100 shadow-red-200' : 'border-gray-100 border'}`}>
       <button onClick={() => onDelete(item.id, item.name)} className="absolute top-3 right-3 text-gray-300 hover:text-red-500"><Trash2 size={16} /></button>
       <div className="flex items-start gap-4 mb-4">
         <div className="w-14 h-14 rounded-2xl shadow-sm border ring-4 ring-gray-50" style={{ backgroundColor: item.color }}></div>
