@@ -206,48 +206,54 @@ function App() {
       <div className="max-w-7xl mx-auto">
         {activeTab === 'inventory' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-3 space-y-6">
-              {/* 左侧卡片：删除了底部的导入按钮部分 */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
-                <h2 className="font-bold text-gray-800 mb-5 flex items-center gap-2 text-lg"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
-                <form onSubmit={handleEntry} className="space-y-4">
-                  <div className="relative">
-                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">名称</label>
-                    <input type="text" placeholder="例如: A1 (自动识别)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
-                    {existingItem && <div className="absolute right-2 top-8 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 animate-pulse"><Layers size={10} /> 已存在</div>}
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">颜色</label>
-                      <div className="flex items-center gap-2 border border-gray-200 rounded-xl p-1.5 bg-gray-50">
-                        <input type="color" disabled={!!existingItem} className={`w-8 h-8 rounded-lg cursor-pointer bg-transparent border-none ${existingItem ? 'opacity-50' : ''}`} value={newColor} onChange={e => setNewColor(e.target.value)} />
-                        <span className="text-xs text-gray-500 font-mono">{newColor}</span>
+            <div className="lg:col-span-3">
+              {/* === 修改点：新增一个 sticky 外壳，包裹住表单和警告框 === */}
+              <div className="sticky top-6 space-y-6">
+                
+                {/* 这里的 className 去掉了原本的 sticky top-6 */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                  <h2 className="font-bold text-gray-800 mb-5 flex items-center gap-2 text-lg"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
+                  <form onSubmit={handleEntry} className="space-y-4">
+                    <div className="relative">
+                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">名称</label>
+                      <input type="text" placeholder="例如: A1 (自动识别)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
+                      {existingItem && <div className="absolute right-2 top-8 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 animate-pulse"><Layers size={10} /> 已存在</div>}
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">颜色</label>
+                        <div className="flex items-center gap-2 border border-gray-200 rounded-xl p-1.5 bg-gray-50">
+                          <input type="color" disabled={!!existingItem} className={`w-8 h-8 rounded-lg cursor-pointer bg-transparent border-none ${existingItem ? 'opacity-50' : ''}`} value={newColor} onChange={e => setNewColor(e.target.value)} />
+                          <span className="text-xs text-gray-500 font-mono">{newColor}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">入库数量</label>
-                      <input type="number" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">入库数量</label>
+                        <input type="number" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5 text-orange-400">预警线</label>
+                        <input type="number" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5 text-orange-400">预警线</label>
-                      <input type="number" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
-                    </div>
-                  </div>
 
-                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入豆'}</button>
-                </form>
-              </div>
-              
-              {lowStockCount > 0 && (
-                <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm animate-pulse">
-                   <div className="flex items-center gap-2 text-red-600 font-bold mb-2"><AlertTriangle size={20} /> 缺货提醒</div>
-                   <p className="text-sm text-red-500 leading-relaxed">有 <span className="font-bold text-lg mx-1">{lowStockCount}</span> 种豆豆库存不足</p>
+                    <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
+                  </form>
                 </div>
-              )}
+                
+                {/* 缺货提醒框 (现在被包在 sticky 外壳里了，会跟着一起固定) */}
+                {lowStockCount > 0 && (
+                  <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm animate-pulse">
+                     <div className="flex items-center gap-2 text-red-600 font-bold mb-2"><AlertTriangle size={20} /> 缺货提醒</div>
+                     <p className="text-sm text-red-500 leading-relaxed">有 <span className="font-bold text-lg mx-1">{lowStockCount}</span> 种豆豆库存不足</p>
+                  </div>
+                )}
+
+              </div>
             </div>
 
             <div className="lg:col-span-6">
