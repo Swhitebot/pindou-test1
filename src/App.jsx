@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from './supabase';
-import { mardColors } from './beadData';
-import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle, Lock, KeyRound, Database, Loader, Search } from 'lucide-react';
+// 注意：删除了 beadData 的引用
+import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle, Lock, KeyRound, Search } from 'lucide-react';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -32,7 +32,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
 
-  const [importing, setImporting] = useState(false);
+  // 删除了 importing 状态
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#ffb7b2');
   const [newCount, setNewCount] = useState(1000);
@@ -84,7 +84,6 @@ function App() {
     }
   }
 
-  // 修改了 ZG 的分类逻辑，增加 Z 系
   const categories = ['全部', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'R', 'T', 'Y', 'Z', 'Q', '其他'];
 
   const getCategory = (name) => {
@@ -119,34 +118,7 @@ function App() {
     if (data) setLogs([data[0], ...logs]);
   }
 
-  // === 核心修改：覆盖导入逻辑 ===
-  async function handleBatchImport() {
-    if (!confirm(`⚠️ 高能预警：\n\n此操作将【清空】当前所有库存数据，并重新导入官方色卡。\n\n确定要继续吗？`)) return;
-    
-    setImporting(true);
-    try {
-      // 1. 删除所有数据 (通过删除 ID 不等于 -1 的数据来实现全删)
-      const { error: deleteError } = await supabase.from('inventory').delete().neq('id', -1);
-      if (deleteError) throw deleteError;
-
-      // 2. 插入新数据
-      const { error: insertError } = await supabase.from('inventory').insert(mardColors);
-      if (insertError) throw insertError;
-
-      // 3. 记录日志
-      await addLog('系统操作', `重置并导入 MARD 全套色卡`, mardColors.length);
-      
-      // 4. 刷新页面数据
-      await fetchData();
-      
-      alert(`导入成功！共导入 ${mardColors.length} 种颜色。`);
-    } catch (err) {
-      console.error(err);
-      alert('导入出错，请重试');
-    } finally {
-      setImporting(false);
-    }
-  }
+  // 删除了 handleBatchImport 函数
 
   async function handleEntry(e) {
     e.preventDefault();
@@ -235,6 +207,7 @@ function App() {
         {activeTab === 'inventory' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-3 space-y-6">
+              {/* 左侧卡片：删除了底部的导入按钮部分 */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
                 <h2 className="font-bold text-gray-800 mb-5 flex items-center gap-2 text-lg"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
                 <form onSubmit={handleEntry} className="space-y-4">
@@ -267,13 +240,6 @@ function App() {
 
                   <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
                 </form>
-                
-                <div className="mt-6 pt-4 border-t border-gray-100">
-                   <button onClick={handleBatchImport} disabled={importing} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition">
-                     {importing ? <Loader className="animate-spin w-4 h-4" /> : <Database className="w-4 h-4" />} {importing ? '...' : '重置并导入 MARD 官方色卡'}
-                   </button>
-                   <p className="text-[10px] text-center text-gray-400 mt-2">包含 A,B,C,D,E,F,G,H,M,P,R,T,Y,Z 系列</p>
-                </div>
               </div>
               
               {lowStockCount > 0 && (
@@ -301,7 +267,8 @@ function App() {
                    </div>
                  </div>
 
-                 <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar no-scrollbar">
+                 {/* === 核心修改：分类条样式改为自动换行 (flex-wrap)，去掉滚动条 === */}
+                 <div className="flex flex-wrap gap-2 pb-2">
                     {categories.map(cat => (
                       <button key={cat} onClick={() => setSelectedCategory(cat)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${selectedCategory === cat ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>{cat}系</button>
                     ))}
@@ -351,71 +318,26 @@ function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
   const [consumeAmount, setConsumeAmount] = useState('');
   const limit = item.threshold || 200; 
   const isLowStock = item.count < limit;
-  
-  const handleUse = (e) => { 
-    e.preventDefault(); 
-    if (!consumeAmount) return; 
-    onUpdate(item.id, item.name, item.count, parseInt(consumeAmount)); 
-    setConsumeAmount(''); 
-  };
-
+  const handleUse = (e) => { e.preventDefault(); if (!consumeAmount) return; onUpdate(item.id, item.name, item.count, parseInt(consumeAmount)); setConsumeAmount(''); };
   return (
     <div className={`group relative bg-white p-5 rounded-2xl shadow-sm border-2 transition-all hover:shadow-lg ${isLowStock ? 'border-red-500 bg-red-100 shadow-red-200' : 'border-gray-100 border'}`}>
-      
-      <button 
-        onClick={() => onDelete(item.id, item.name)}
-        className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100 z-10"
-        title="删除"
-      >
-        <Trash2 size={16} />
-      </button>
-
+      <button onClick={() => onDelete(item.id, item.name)} className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100 z-10" title="删除"><Trash2 size={16} /></button>
       <div className="flex items-start gap-4 mb-4">
         <div className="relative w-14 h-14 rounded-2xl shadow-sm border border-black/5 ring-4 ring-gray-50 flex-shrink-0 overflow-hidden cursor-pointer">
           <div className="absolute inset-0" style={{ backgroundColor: item.color }}></div>
-          <input 
-            type="color" 
-            value={item.color} 
-            onChange={(e) => onUpdateColor(item.id, e.target.value)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            title="点击修改颜色"
-          />
+          <input type="color" value={item.color} onChange={(e) => onUpdateColor(item.id, e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="点击修改颜色" />
         </div>
-        
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-gray-800 text-lg truncate pr-6">{item.name}</h3>
           <div className="flex items-center gap-2 mt-1">
-            <span className={`text-2xl font-mono font-bold tracking-tight ${isLowStock ? 'text-red-500' : 'text-gray-700'}`}>
-              {item.count}
-            </span>
-            {isLowStock ? (
-               <div className="flex items-center gap-1 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold border border-red-200">
-                 低于 {limit}
-               </div>
-            ) : (
-               <span className="text-[10px] text-gray-300 bg-gray-50 px-1.5 rounded">
-                 安全线 {limit}
-               </span>
-            )}
+            <span className={`text-2xl font-mono font-bold tracking-tight ${isLowStock ? 'text-red-500' : 'text-gray-700'}`}>{item.count}</span>
+            {isLowStock ? <div className="flex items-center gap-1 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold border border-red-200">低于 {limit}</div> : <span className="text-[10px] text-gray-300 bg-gray-50 px-1.5 rounded">安全线 {limit}</span>}
           </div>
         </div>
       </div>
-
       <form onSubmit={handleUse} className="relative">
-        <input 
-          type="number" 
-          placeholder="使用了多少?" 
-          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition pr-16"
-          value={consumeAmount}
-          onChange={e => setConsumeAmount(e.target.value)}
-        />
-        <button 
-          type="submit"
-          disabled={!consumeAmount}
-          className="absolute right-1 top-1 bottom-1 bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-        >
-          登记
-        </button>
+        <input type="number" placeholder="使用了多少?" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition pr-16" value={consumeAmount} onChange={e => setConsumeAmount(e.target.value)} />
+        <button type="submit" disabled={!consumeAmount} className="absolute right-1 top-1 bottom-1 bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center">登记</button>
       </form>
     </div>
   );
