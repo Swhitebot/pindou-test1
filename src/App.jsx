@@ -6,7 +6,7 @@ import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSq
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
-  const SECRET_CODE = '250806'; 
+  const SECRET_CODE = '6666'; 
 
   useEffect(() => {
     const hasLogin = localStorage.getItem('pindou_auth');
@@ -28,10 +28,7 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // 默认排序：从少到多
   const [sortType, setSortType] = useState('count_asc'); 
-
-  // 搜索和分类
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
 
@@ -87,12 +84,13 @@ function App() {
     }
   }
 
-  // === 核心逻辑：智能分类与过滤 ===
-  const categories = ['全部', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'R', 'T', 'Y', 'ZG', 'Q', '其他'];
+  // 修改了 ZG 的分类逻辑，增加 Z 系
+  const categories = ['全部', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'R', 'T', 'Y', 'Z', 'Q', '其他'];
 
   const getCategory = (name) => {
     const n = name.toUpperCase();
-    if (n.startsWith('ZG')) return 'ZG';
+    if (n.startsWith('ZG')) return '其他';
+    if (n.startsWith('Z')) return 'Z';
     if (/^[A-Z]/.test(n)) return n.charAt(0);
     return '其他';
   };
@@ -121,21 +119,33 @@ function App() {
     if (data) setLogs([data[0], ...logs]);
   }
 
+  // === 核心修改：覆盖导入逻辑 ===
   async function handleBatchImport() {
-    if (!confirm(`准备导入 ${mardColors.length} 种 MARD 色卡数据？`)) return;
+    if (!confirm(`⚠️ 高能预警：\n\n此操作将【清空】当前所有库存数据，并重新导入官方色卡。\n\n确定要继续吗？`)) return;
+    
     setImporting(true);
     try {
-      const { data: currentItems } = await supabase.from('inventory').select('name');
-      const currentNames = new Set(currentItems?.map(i => i.name.toUpperCase()));
-      const toInsert = mardColors.filter(item => !currentNames.has(item.name.toUpperCase()));
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from('inventory').insert(toInsert);
-        if (error) throw error;
-        await addLog('系统操作', `批量导入色卡`, toInsert.length);
-        await fetchData();
-      }
-      alert(`导入完成！新增: ${toInsert.length} 个`);
-    } catch (err) { alert('导入出错'); } finally { setImporting(false); }
+      // 1. 删除所有数据 (通过删除 ID 不等于 -1 的数据来实现全删)
+      const { error: deleteError } = await supabase.from('inventory').delete().neq('id', -1);
+      if (deleteError) throw deleteError;
+
+      // 2. 插入新数据
+      const { error: insertError } = await supabase.from('inventory').insert(mardColors);
+      if (insertError) throw insertError;
+
+      // 3. 记录日志
+      await addLog('系统操作', `重置并导入 MARD 全套色卡`, mardColors.length);
+      
+      // 4. 刷新页面数据
+      await fetchData();
+      
+      alert(`导入成功！共导入 ${mardColors.length} 种颜色。`);
+    } catch (err) {
+      console.error(err);
+      alert('导入出错，请重试');
+    } finally {
+      setImporting(false);
+    }
   }
 
   async function handleEntry(e) {
@@ -145,7 +155,7 @@ function App() {
     if (existingItem) {
       const newTotal = existingItem.count + countToAdd;
       const { error } = await supabase.from('inventory').update({ count: newTotal }).eq('id', existingItem.id);
-      if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补货入豆', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
+      if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补货入库', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
     } else {
       const { data, error } = await supabase.from('inventory').insert([{ name: newName, color: newColor, count: countToAdd, threshold: parseInt(newThreshold) }]).select();
       if (!error) { setItems([data[0], ...items]); addLog(newName, '新购入库', countToAdd); setNewName(''); setNewCount(1000); setNewThreshold(200); }
@@ -214,10 +224,10 @@ function App() {
   return (
     <div className="min-h-screen p-3 md:p-6 bg-gray-50 font-sans pb-20">
       <div className="max-w-7xl mx-auto mb-6 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between">
-        <div><h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆豆军火库</h1><p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p></div>
+        <div><h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 拼豆军火库</h1><p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p></div>
         <div className="mt-4 md:mt-0 flex gap-4">
-           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 豆豆管理</button>
-           <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 豆墙</button>
+           <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 库存管理</button>
+           <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 作品墙</button>
         </div>
       </div>
 
@@ -225,7 +235,6 @@ function App() {
         {activeTab === 'inventory' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-3 space-y-6">
-              {/* === 恢复：原来大间距的入库卡片 === */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
                 <h2 className="font-bold text-gray-800 mb-5 flex items-center gap-2 text-lg"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
                 <form onSubmit={handleEntry} className="space-y-4">
@@ -247,7 +256,7 @@ function App() {
 
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">入豆数量</label>
+                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">入库数量</label>
                       <input type="number" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
                     </div>
                     <div className="flex-1">
@@ -256,14 +265,14 @@ function App() {
                     </div>
                   </div>
 
-                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补豆 (+${newCount})` : '✨ 确认入豆'}</button>
+                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补货 (+${newCount})` : '✨ 确认入库'}</button>
                 </form>
                 
                 <div className="mt-6 pt-4 border-t border-gray-100">
                    <button onClick={handleBatchImport} disabled={importing} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition">
-                     {importing ? <Loader className="animate-spin w-4 h-4" /> : <Database className="w-4 h-4" />} {importing ? '...' : '导入全套 MARD 色卡'}
+                     {importing ? <Loader className="animate-spin w-4 h-4" /> : <Database className="w-4 h-4" />} {importing ? '...' : '重置并导入 MARD 官方色卡'}
                    </button>
-                   <p className="text-[10px] text-center text-gray-400 mt-2">包含 A-H, M, P, R, T, Y, ZG, Q 等全系列</p>
+                   <p className="text-[10px] text-center text-gray-400 mt-2">包含 A,B,C,D,E,F,G,H,M,P,R,T,Y,Z 系列</p>
                 </div>
               </div>
               
@@ -277,7 +286,6 @@ function App() {
 
             <div className="lg:col-span-6">
               <div className="flex flex-col gap-4 mb-4">
-                 {/* 工具栏 */}
                  <div className="flex items-center gap-2">
                    <div className="flex-1 relative">
                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -293,7 +301,6 @@ function App() {
                    </div>
                  </div>
 
-                 {/* 分类条 */}
                  <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar no-scrollbar">
                     {categories.map(cat => (
                       <button key={cat} onClick={() => setSelectedCategory(cat)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${selectedCategory === cat ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>{cat}系</button>
@@ -307,7 +314,6 @@ function App() {
               </div>
 
               {loading ? <div className="text-center text-gray-400">加载中...</div> : (
-                // === 恢复：Grid 布局，两列 ===
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredAndSortedItems.map(item => <ItemCard key={item.id} item={item} onDelete={deleteItem} onUpdate={updateStock} onUpdateColor={updateColor} />)}
                   {filteredAndSortedItems.length === 0 && <div className="col-span-full text-center py-10 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">没有找到 "{searchTerm}" 或该分类下无数据</div>}
@@ -341,7 +347,6 @@ function App() {
   );
 }
 
-// === 恢复：原来的大卡片样式 ===
 function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
   const [consumeAmount, setConsumeAmount] = useState('');
   const limit = item.threshold || 200; 
@@ -357,7 +362,6 @@ function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
   return (
     <div className={`group relative bg-white p-5 rounded-2xl shadow-sm border-2 transition-all hover:shadow-lg ${isLowStock ? 'border-red-500 bg-red-100 shadow-red-200' : 'border-gray-100 border'}`}>
       
-      {/* 删除按钮 */}
       <button 
         onClick={() => onDelete(item.id, item.name)}
         className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100 z-10"
@@ -367,7 +371,6 @@ function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
       </button>
 
       <div className="flex items-start gap-4 mb-4">
-        {/* 大色块 + 点击改色 */}
         <div className="relative w-14 h-14 rounded-2xl shadow-sm border border-black/5 ring-4 ring-gray-50 flex-shrink-0 overflow-hidden cursor-pointer">
           <div className="absolute inset-0" style={{ backgroundColor: item.color }}></div>
           <input 
@@ -398,7 +401,6 @@ function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
         </div>
       </div>
 
-      {/* 恢复：原来的消耗表单（有输入框 + 登记按钮） */}
       <form onSubmit={handleUse} className="relative">
         <input 
           type="number" 
