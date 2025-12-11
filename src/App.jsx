@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from './supabase';
 import { mardColors } from './beadData';
-import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle, Lock, KeyRound, Database, Loader, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Package, History, Sparkles, Image as ImageIcon, MessageSquare, Send, ArrowUpDown, Layers, AlertTriangle, Lock, KeyRound, Database, Loader, Search } from 'lucide-react';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
-  const SECRET_CODE = '6666'; 
+  const SECRET_CODE = '250806'; 
 
   useEffect(() => {
     const hasLogin = localStorage.getItem('pindou_auth');
@@ -28,9 +28,10 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // === 修改点 1：默认排序改为 'count_asc' (从少到多) ===
+  // 默认排序：从少到多
   const [sortType, setSortType] = useState('count_asc'); 
 
+  // 搜索和分类
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('全部');
 
@@ -86,12 +87,13 @@ function App() {
     }
   }
 
+  // === 核心逻辑：智能分类与过滤 ===
   const categories = ['全部', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M', 'P', 'R', 'T', 'Y', 'ZG', 'Q', '其他'];
 
   const getCategory = (name) => {
     const n = name.toUpperCase();
     if (n.startsWith('ZG')) return 'ZG';
-    if (/^[A-Z]/.test(n)) return n.charAt(0); 
+    if (/^[A-Z]/.test(n)) return n.charAt(0);
     return '其他';
   };
 
@@ -143,7 +145,7 @@ function App() {
     if (existingItem) {
       const newTotal = existingItem.count + countToAdd;
       const { error } = await supabase.from('inventory').update({ count: newTotal }).eq('id', existingItem.id);
-      if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补货入库', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
+      if (!error) { setItems(items.map(item => item.id === existingItem.id ? { ...item, count: newTotal } : item)); addLog(existingItem.name, '补货入豆', countToAdd); setNewName(''); setNewCount(1000); setExistingItem(null); }
     } else {
       const { data, error } = await supabase.from('inventory').insert([{ name: newName, color: newColor, count: countToAdd, threshold: parseInt(newThreshold) }]).select();
       if (!error) { setItems([data[0], ...items]); addLog(newName, '新购入库', countToAdd); setNewName(''); setNewCount(1000); setNewThreshold(200); }
@@ -157,18 +159,14 @@ function App() {
     addLog(name, '删除销毁', 0);
   }
 
-  // 更新库存数量
   async function updateStock(id, name, currentCount, changeAmount) {
     const newAmount = currentCount - changeAmount;
     const { error } = await supabase.from('inventory').update({ count: newAmount }).eq('id', id);
     if (!error) { setItems(items.map(item => item.id === id ? { ...item, count: newAmount } : item)); addLog(name, '消耗使用', changeAmount); }
   }
 
-  // === 修改点 2：更新颜色函数 ===
   async function updateColor(id, newColor) {
-    // 1. 本地立即更新（为了反应快）
     setItems(items.map(item => item.id === id ? { ...item, color: newColor } : item));
-    // 2. 异步更新数据库
     await supabase.from('inventory').update({ color: newColor }).eq('id', id);
   }
 
@@ -216,7 +214,7 @@ function App() {
   return (
     <div className="min-h-screen p-3 md:p-6 bg-gray-50 font-sans pb-20">
       <div className="max-w-7xl mx-auto mb-6 bg-indigo-600 text-white p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between">
-        <div><h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆子军火库</h1><p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p></div>
+        <div><h1 className="text-3xl font-bold flex items-center gap-3"><Package className="w-8 h-8" /> 豆豆军火库</h1><p className="opacity-90 mt-2 text-indigo-100 flex items-center gap-2 text-sm"><Sparkles size={16} /> {greeting}</p></div>
         <div className="mt-4 md:mt-0 flex gap-4">
            <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'inventory' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📦 豆豆管理</button>
            <button onClick={() => setActiveTab('gallery')} className={`px-4 py-2 rounded-xl font-bold transition ${activeTab === 'gallery' ? 'bg-white text-indigo-600' : 'bg-indigo-700 text-indigo-200 hover:bg-indigo-500'}`}>📸 豆墙</button>
@@ -227,48 +225,64 @@ function App() {
         {activeTab === 'inventory' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-3 space-y-6">
-              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
-                <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
-                <form onSubmit={handleEntry} className="space-y-3">
+              {/* === 恢复：原来大间距的入库卡片 === */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-6">
+                <h2 className="font-bold text-gray-800 mb-5 flex items-center gap-2 text-lg"><Plus className="w-5 h-5 text-indigo-600" /> 入豆操作</h2>
+                <form onSubmit={handleEntry} className="space-y-4">
                   <div className="relative">
-                    <input type="text" placeholder="名称 (自动识别)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
-                    {existingItem && <div className="absolute right-2 top-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1"><Layers size={10} /> 已存在</div>}
+                    <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">名称</label>
+                    <input type="text" placeholder="例如: A1 (自动识别)" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newName} onChange={e => setNewName(e.target.value)} />
+                    {existingItem && <div className="absolute right-2 top-8 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1 animate-pulse"><Layers size={10} /> 已存在</div>}
                   </div>
-                  <div className="flex gap-2">
-                    <input type="color" disabled={!!existingItem} className={`w-10 h-10 rounded-lg cursor-pointer bg-transparent border-none ${existingItem ? 'opacity-50' : ''}`} value={newColor} onChange={e => setNewColor(e.target.value)} />
-                    <input type="number" placeholder="数量" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
+                  
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">颜色</label>
+                      <div className="flex items-center gap-2 border border-gray-200 rounded-xl p-1.5 bg-gray-50">
+                        <input type="color" disabled={!!existingItem} className={`w-8 h-8 rounded-lg cursor-pointer bg-transparent border-none ${existingItem ? 'opacity-50' : ''}`} value={newColor} onChange={e => setNewColor(e.target.value)} />
+                        <span className="text-xs text-gray-500 font-mono">{newColor}</span>
+                      </div>
+                    </div>
                   </div>
-                  <input type="number" placeholder="预警线" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
-                  <button type="submit" className={`w-full py-2.5 rounded-xl font-bold text-white transition-all shadow-md ${existingItem ? 'bg-green-600' : 'bg-indigo-600'}`}>{existingItem ? `补货 +${newCount}` : '入库'}</button>
+
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5">入豆数量</label>
+                      <input type="number" className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none" value={newCount} onChange={e => setNewCount(e.target.value)} />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1.5 text-orange-400">预警线</label>
+                      <input type="number" disabled={!!existingItem} className={`w-full p-2.5 bg-orange-50 border border-orange-100 text-orange-600 rounded-xl outline-none ${existingItem ? 'opacity-50' : ''}`} value={newThreshold} onChange={e => setNewThreshold(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <button type="submit" className={`w-full py-3 rounded-xl font-bold text-white transition-all shadow-lg ${existingItem ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}>{existingItem ? `⚡ 确认补豆 (+${newCount})` : '✨ 确认入豆'}</button>
                 </form>
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                
+                <div className="mt-6 pt-4 border-t border-gray-100">
                    <button onClick={handleBatchImport} disabled={importing} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 transition">
                      {importing ? <Loader className="animate-spin w-4 h-4" /> : <Database className="w-4 h-4" />} {importing ? '...' : '导入全套 MARD 色卡'}
                    </button>
+                   <p className="text-[10px] text-center text-gray-400 mt-2">包含 A-H, M, P, R, T, Y, ZG, Q 等全系列</p>
                 </div>
               </div>
+              
               {lowStockCount > 0 && (
-                <div className="bg-red-50 p-4 rounded-2xl border border-red-100 shadow-sm animate-pulse">
-                   <div className="flex items-center gap-2 text-red-600 font-bold mb-1 text-sm"><AlertTriangle size={16} /> 缺货提醒</div>
-                   <p className="text-xs text-red-500">有 <span className="font-bold text-base mx-1">{lowStockCount}</span> 种豆豆库存不足</p>
+                <div className="bg-red-50 p-5 rounded-2xl border border-red-100 shadow-sm animate-pulse">
+                   <div className="flex items-center gap-2 text-red-600 font-bold mb-2"><AlertTriangle size={20} /> 缺货提醒</div>
+                   <p className="text-sm text-red-500 leading-relaxed">有 <span className="font-bold text-lg mx-1">{lowStockCount}</span> 种豆豆库存不足</p>
                 </div>
               )}
             </div>
 
             <div className="lg:col-span-6">
               <div className="flex flex-col gap-4 mb-4">
+                 {/* 工具栏 */}
                  <div className="flex items-center gap-2">
                    <div className="flex-1 relative">
                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                     <input 
-                        type="text" 
-                        placeholder="搜索名称..." 
-                        className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                     />
+                     <input type="text" placeholder="搜索名称..." className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                    </div>
-                   
                    <div className="flex items-center bg-white rounded-xl border border-gray-200 px-3 py-2 gap-2">
                      <ArrowUpDown size={14} className="text-gray-400" />
                      <select className="text-sm bg-transparent outline-none text-gray-600 cursor-pointer" value={sortType} onChange={(e) => setSortType(e.target.value)}>
@@ -279,19 +293,10 @@ function App() {
                    </div>
                  </div>
 
+                 {/* 分类条 */}
                  <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar no-scrollbar">
                     {categories.map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${
-                          selectedCategory === cat 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
-                            : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        {cat}系
-                      </button>
+                      <button key={cat} onClick={() => setSelectedCategory(cat)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all border ${selectedCategory === cat ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>{cat}系</button>
                     ))}
                  </div>
                  
@@ -302,14 +307,10 @@ function App() {
               </div>
 
               {loading ? <div className="text-center text-gray-400">加载中...</div> : (
-                <div className="grid grid-cols-1 gap-3">
-                  {/* === 修改点 3：传递 updateColor 函数 === */}
+                // === 恢复：Grid 布局，两列 ===
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredAndSortedItems.map(item => <ItemCard key={item.id} item={item} onDelete={deleteItem} onUpdate={updateStock} onUpdateColor={updateColor} />)}
-                  {filteredAndSortedItems.length === 0 && (
-                    <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">
-                      没有找到 "{searchTerm}" 或该分类下无数据
-                    </div>
-                  )}
+                  {filteredAndSortedItems.length === 0 && <div className="col-span-full text-center py-10 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">没有找到 "{searchTerm}" 或该分类下无数据</div>}
                 </div>
               )}
             </div>
@@ -340,7 +341,7 @@ function App() {
   );
 }
 
-// === 修改点 4：ItemCard 支持点击改色 ===
+// === 恢复：原来的大卡片样式 ===
 function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
   const [consumeAmount, setConsumeAmount] = useState('');
   const limit = item.threshold || 200; 
@@ -354,15 +355,21 @@ function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
   };
 
   return (
-    <div className={`group flex items-center justify-between p-3 bg-white rounded-xl shadow-sm border transition-all hover:shadow-md ${isLowStock ? 'border-red-500 bg-red-50' : 'border-gray-100'}`}>
+    <div className={`group relative bg-white p-5 rounded-2xl shadow-sm border-2 transition-all hover:shadow-lg ${isLowStock ? 'border-red-500 bg-red-100 shadow-red-200' : 'border-gray-100 border'}`}>
       
-      <div className="flex items-center gap-4 flex-1 min-w-0">
-        {/* === 颜色块：现在是一个相对定位的容器 === */}
-        <div className="relative w-10 h-10 rounded-lg shadow-sm border border-black/5 flex-shrink-0 overflow-hidden group/color cursor-pointer">
-          {/* 1. 显示的颜色 */}
+      {/* 删除按钮 */}
+      <button 
+        onClick={() => onDelete(item.id, item.name)}
+        className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100 z-10"
+        title="删除"
+      >
+        <Trash2 size={16} />
+      </button>
+
+      <div className="flex items-start gap-4 mb-4">
+        {/* 大色块 + 点击改色 */}
+        <div className="relative w-14 h-14 rounded-2xl shadow-sm border border-black/5 ring-4 ring-gray-50 flex-shrink-0 overflow-hidden cursor-pointer">
           <div className="absolute inset-0" style={{ backgroundColor: item.color }}></div>
-          
-          {/* 2. 隐形的颜色输入框 (覆盖在上面，点它等于点输入框) */}
           <input 
             type="color" 
             value={item.color} 
@@ -372,29 +379,42 @@ function ItemCard({ item, onDelete, onUpdate, onUpdateColor }) {
           />
         </div>
         
-        <div className="flex flex-col">
-          <div className="flex items-baseline gap-2">
-            <span className="font-bold text-gray-800 text-base">{item.name}</span>
-            {isLowStock && <span className="text-[10px] text-red-500 font-bold bg-red-100 px-1 rounded">补货</span>}
-          </div>
-          <div className="text-xs text-gray-400">
-             库存: <span className={`font-mono font-bold text-sm ${isLowStock ? 'text-red-600' : 'text-gray-600'}`}>{item.count}</span> 
-             <span className="ml-2 opacity-50">/ {limit}</span>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-gray-800 text-lg truncate pr-6">{item.name}</h3>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`text-2xl font-mono font-bold tracking-tight ${isLowStock ? 'text-red-500' : 'text-gray-700'}`}>
+              {item.count}
+            </span>
+            {isLowStock ? (
+               <div className="flex items-center gap-1 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold border border-red-200">
+                 低于 {limit}
+               </div>
+            ) : (
+               <span className="text-[10px] text-gray-300 bg-gray-50 px-1.5 rounded">
+                 安全线 {limit}
+               </span>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-         <input 
-            type="number" 
-            placeholder="-" 
-            className="w-16 py-1.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-center outline-none focus:border-indigo-500 focus:bg-white"
-            value={consumeAmount}
-            onChange={e => setConsumeAmount(e.target.value)}
-            onKeyDown={e => { if(e.key === 'Enter') { handleUse(e); e.target.blur(); } }}
-         />
-         <button onClick={() => onDelete(item.id, item.name)} className="p-2 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="删除"><Trash2 size={16} /></button>
-      </div>
+      {/* 恢复：原来的消耗表单（有输入框 + 登记按钮） */}
+      <form onSubmit={handleUse} className="relative">
+        <input 
+          type="number" 
+          placeholder="使用了多少?" 
+          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition pr-16"
+          value={consumeAmount}
+          onChange={e => setConsumeAmount(e.target.value)}
+        />
+        <button 
+          type="submit"
+          disabled={!consumeAmount}
+          className="absolute right-1 top-1 bottom-1 bg-gray-800 text-white px-3 rounded-lg text-xs font-bold hover:bg-black transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+        >
+          登记
+        </button>
+      </form>
     </div>
   );
 }
