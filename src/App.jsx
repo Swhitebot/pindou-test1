@@ -55,51 +55,74 @@ function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const SECRET_CODE = '250806'; 
 
-  // === 新增：独立的记录函数 (带探针) ===
+ // === 🛡️ 坚强版记录函数：IP查不到也能存记录 ===
   const recordVisit = async () => {
-    console.log('🚀 触发记录机制...'); 
+  console.log('🚀 触发记录机制...'); 
+  try {
+    // 1. 获取时间
+    const now = new Date();
+    const timeString = now.toLocaleString('zh-CN', { hour12: false }); 
+
+    // 2. 获取位置 (增加了容错处理)
+    let geoData = { ip: '未知IP', city: '未知城市', region: '未知省份' };
+    
     try {
-      // 1. 获取时间
-      const now = new Date();
-      const timeString = now.toLocaleString('zh-CN', { hour12: false }); 
-
-      // 2. 获取位置
-      const ipRes = await fetch('https://api.db-ip.com/v2/free/self');
-      const geo = await ipRes.json();
-      console.log('📍 获取到位置:', geo);
-
-      // 3. 获取设备信息
-      const ua = navigator.userAgent;
-      let os = "未知系统";
-      if (ua.includes("Win")) os = "Windows PC";
-      else if (ua.includes("iPhone")) os = "iPhone";
-      else if (ua.includes("iPad")) os = "iPad";
-      else if (ua.includes("Mac")) os = "Mac电脑";
-      else if (ua.includes("Android")) os = "Android手机";
-
-      let browser = "未知浏览器";
-      if (ua.includes("MicroMessenger")) browser = "微信内置";
-      else if (ua.includes("Chrome")) browser = "Chrome";
-      else if (ua.includes("Safari")) browser = "Safari";
-
-      // 4. 存入 Supabase
-      const { error } = await supabase.from('login_logs').insert([{
-        ip: geo.ipAddress,
-        city: geo.city || '未知城市',
-        region: geo.state || geo.countryName || '未知省份',
-        os: os,
-        browser: browser,
-        device: ua,
-        login_time: timeString
-      }]);
-
-      if (error) console.error('❌ 写入数据库失败:', error);
-      else console.log('✅ 访问日志已成功保存！');
-
-    } catch (err) {
-      console.error('⚠️ 日志记录流程出错:', err);
+      // 尝试请求 ipwho.is (这个接口通常更稳)
+      const ipRes = await fetch('https://ipwho.is/');
+      const data = await ipRes.json();
+      
+      if (data.success) {
+        geoData = {
+          ip: data.ip,
+          city: data.city || '未知',
+          region: data.region || '未知'
+        };
+      }
+    } catch (ipError) {
+      console.warn('⚠️ IP定位服务连接失败，将记录为未知位置。原因:', ipError);
+      // 即使失败，代码也会继续往下走，不会中断
     }
-  };
+
+    console.log('📍 最终记录的位置信息:', geoData);
+
+    // 3. 获取设备信息
+    const ua = navigator.userAgent;
+    let os = "未知系统";
+    if (ua.includes("Win")) os = "Windows PC";
+    else if (ua.includes("iPhone")) os = "iPhone";
+    else if (ua.includes("iPad")) os = "iPad";
+    else if (ua.includes("Mac")) os = "Mac电脑";
+    else if (ua.includes("Android")) os = "Android手机";
+    else if (ua.includes("Linux")) os = "Linux";
+
+    let browser = "未知浏览器";
+    if (ua.includes("MicroMessenger")) browser = "微信内置";
+    else if (ua.includes("Chrome")) browser = "Chrome";
+    else if (ua.includes("Safari")) browser = "Safari";
+    else if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Edge")) browser = "Edge";
+
+    // 4. 存入 Supabase
+    const { error } = await supabase.from('login_logs').insert([{
+      ip: geoData.ip,
+      city: geoData.city,
+      region: geoData.region,
+      os: os,
+      browser: browser,
+      device: ua,
+      login_time: timeString
+    }]);
+
+    if (error) {
+      console.error('❌ Supabase 写入失败:', error);
+    } else {
+      console.log('✅ 访问日志已成功保存！');
+    }
+
+  } catch (err) {
+    console.error('⚠️ 日志记录流程严重错误:', err);
+  }
+};
 
 useEffect(() => {
     const hasLogin = localStorage.getItem('pindou_auth');
