@@ -60,11 +60,63 @@ function App() {
     if (hasLogin === 'true') setIsAuthenticated(true);
   }, []);
 
-  const handleLogin = (e) => {
+  // const handleLogin = (e) => {
+  //   e.preventDefault();
+  //   if (passwordInput === SECRET_CODE) {
+  //     setIsAuthenticated(true);
+  //     localStorage.setItem('pindou_auth', 'true');
+  //   } else {
+  //     alert('暗号错误！');
+  //   }
+  // };
+
+  // === 登录：IP + 设备 + 精确时间 ===
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (passwordInput === SECRET_CODE) {
       setIsAuthenticated(true);
       localStorage.setItem('pindou_auth', 'true');
+
+      try {
+        // 1. 获取当前详细时间 (格式如: 2025/12/12 09:30:05)
+        const now = new Date();
+        const timeString = now.toLocaleString('zh-CN', { hour12: false }); 
+
+        // 2. 获取 IP 和 地理位置
+        const ipRes = await fetch('https://freeipapi.com/api/json');
+        const geo = await ipRes.json();
+
+        // 3. 分析设备信息
+        const ua = navigator.userAgent;
+        let os = "未知系统";
+        if (ua.includes("Win")) os = "Windows PC";
+        else if (ua.includes("iPhone")) os = "iPhone";
+        else if (ua.includes("iPad")) os = "iPad";
+        else if (ua.includes("Mac")) os = "Mac电脑";
+        else if (ua.includes("Android")) os = "Android手机";
+        else if (ua.includes("Linux")) os = "Linux";
+
+        let browser = "未知浏览器";
+        if (ua.includes("MicroMessenger")) browser = "微信内置";
+        else if (ua.includes("Chrome")) browser = "Chrome";
+        else if (ua.includes("Safari")) browser = "Safari";
+        else if (ua.includes("Firefox")) browser = "Firefox";
+        else if (ua.includes("Edge")) browser = "Edge";
+
+        // 4. 全部存入数据库
+        await supabase.from('login_logs').insert([{
+          ip: geo.ipAddress,
+          city: geo.cityName || '未知城市',
+          region: geo.regionName || '未知省份',
+          os: os,
+          browser: browser,
+          device: ua,
+          login_time: timeString // 👈 新增：记录看得懂的时间
+        }]);
+
+      } catch (err) {
+        console.log('日志记录失败', err);
+      }
     } else {
       alert('暗号错误！');
     }
